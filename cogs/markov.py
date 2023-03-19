@@ -133,6 +133,9 @@ class Markov(commands.Cog):
     async def remove_dataset(self, ctx: commands.Context, dataset: str):
         cache_path = self.cache(ctx) + dataset
 
+        if os.path.exists(cache_path):
+            os.path.remove(cache_path)
+
     @dataset.command(name="get", help="Download a dataset")
     @discord.app_commands.describe(dataset="The name of the dataset to download")
     @discord.app_commands.autocomplete(dataset=autocomplete_dataset)
