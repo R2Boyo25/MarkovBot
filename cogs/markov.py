@@ -82,6 +82,8 @@ class Markov(commands.Cog):
     )
     @discord.app_commands.autocomplete(dataset=autocomplete_dataset)
     async def generate(self, ctx: commands.Context, dataset: str, sentences: int = 3):
+        await ctx.defer()
+
         path = self.cache(ctx) + dataset
 
         if not os.path.exists(path):
@@ -115,6 +117,8 @@ class Markov(commands.Cog):
     async def add_dataset(
         self, ctx: commands.Context, name: str, attachment: discord.Attachment
     ):
+        await ctx.defer()
+
         await attachment.save(self.inputs(ctx) + name)
 
         with open(self.inputs(ctx) + name, "r") as f:
