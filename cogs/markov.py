@@ -179,6 +179,8 @@ class Markov(commands.Cog):
     @discord.app_commands.describe(dataset="The name of the dataset to regenerate", token_size="How many words should be in a token. Higher numbers is more coherent but much less random. (default 2)")
     @discord.app_commands.autocomplete(dataset=autocomplete_dataset)
     async def regenerate_dataset(self, ctx: commands.Context, dataset: str, token_size: int = 2):
+        await ctx.defer()
+        
         input_path = self.inputs(ctx) + dataset
         cache_path = self.cache(ctx) + dataset
 
@@ -200,6 +202,8 @@ class Markov(commands.Cog):
     @discord.app_commands.describe(new_name="What to name the new dataset", dataset_1="The first dataset to include", dataset_2="The second dataset to include")
     @discord.app_commands.autocomplete(dataset_1=autocomplete_dataset, dataset_2=autocomplete_dataset)
     async def regenerate_dataset(self, ctx: commands.Context, new_name: str, dataset_1: str, dataset_2: str):
+        await ctx.defer()
+        
         for dataset in [dataset_1, dataset_2]:
             if not os.path.exists(self.cache(ctx) + dataset):
                 await ctx.send(f"The dataset '{dataset}' does not exist.", ephemeral=True)
@@ -220,6 +224,8 @@ class Markov(commands.Cog):
     @discord.app_commands.describe(dataset="The name of the dataset to download")
     @discord.app_commands.autocomplete(dataset=autocomplete_dataset)
     async def get_dataset(self, ctx: commands.context, dataset: str):
+        await ctx.defer()
+        
         path = self.inputs(ctx) + dataset
 
         if not os.path.exists(path):
