@@ -214,7 +214,7 @@ class Markov(commands.Cog):
     @discord.app_commands.autocomplete(
         dataset_1=autocomplete_dataset, dataset_2=autocomplete_dataset
     )
-    async def regenerate_dataset(
+    async def combine_datasets(
         self, ctx: commands.Context, new_name: str, dataset_1: str, dataset_2: str
     ):
         await ctx.defer()
