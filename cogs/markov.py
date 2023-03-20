@@ -26,7 +26,7 @@ class Markov(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.models = {}
-        
+
     def get_server_path(self, ctx: commands.Context):
         path = os.path.abspath("./data/" + str(ctx.guild.id) + "/")
 
@@ -81,8 +81,7 @@ class Markov(commands.Cog):
             self.models[ctx.guild.id] = {}
 
         self.models[ctx.guild.id][dataset] = model
-        
-    
+
     def load_dataset(self, ctx, dataset):
         if ctx.guild.id in self.models:
             if dataset in self.models[ctx.guild.id]:
@@ -90,7 +89,7 @@ class Markov(commands.Cog):
 
         with open(self.cache(ctx) + dataset, "r") as f:
             model = IntelliText.from_json(f.read())
-            
+
         self.set_dataset(ctx, dataset, model)
 
         return model
@@ -99,7 +98,7 @@ class Markov(commands.Cog):
         if ctx.guild.id in self.models:
             if dataset in self.models[ctx.guild.id]:
                 del self.models[ctx.guild.id][dataset]
-        
+
     @commands.hybrid_command(name="generate", help="Generate text")
     @discord.app_commands.describe(
         dataset="The name of the dataset to generate from",
@@ -112,7 +111,7 @@ class Markov(commands.Cog):
         if not os.path.exists(self.cache(ctx) + dataset):
             await ctx.send("That dataset does not exist.", ephemeral=True)
             return
-            
+
         await ctx.send(
             embed=discord.Embed(
                 title=f"Generated from {dataset}",
@@ -131,7 +130,10 @@ class Markov(commands.Cog):
 
         if ctx.guild.id in self.models:
             if len(self.models[ctx.guild.id]) > 0:
-                embed.add_field(name="Cached Models", value=", ".join(self.models[ctx.guild.id].keys()))
+                embed.add_field(
+                    name="Cached Models",
+                    value=", ".join(self.models[ctx.guild.id].keys()),
+                )
 
         await ctx.send(
             embed=embed,
@@ -168,7 +170,7 @@ class Markov(commands.Cog):
         if not os.path.exists(cache_path):
             await ctx.send("That dataset does not exist.", ephemeral=True)
             return
-            
+
         os.remove(cache_path)
 
         self.remove_dataset(ctx, dataset)
@@ -176,11 +178,16 @@ class Markov(commands.Cog):
         await ctx.send(f"Successfully removed {dataset}.", ephemeral=True)
 
     @dataset.command(name="regenerate", help="Regenerate the cache for a dataset")
-    @discord.app_commands.describe(dataset="The name of the dataset to regenerate", token_size="How many words should be in a token. Higher numbers is more coherent but much less random. (default 2)")
+    @discord.app_commands.describe(
+        dataset="The name of the dataset to regenerate",
+        token_size="How many words should be in a token. Higher numbers is more coherent but much less random. (default 2)",
+    )
     @discord.app_commands.autocomplete(dataset=autocomplete_dataset)
-    async def regenerate_dataset(self, ctx: commands.Context, dataset: str, token_size: int = 2):
+    async def regenerate_dataset(
+        self, ctx: commands.Context, dataset: str, token_size: int = 2
+    ):
         await ctx.defer()
-        
+
         input_path = self.inputs(ctx) + dataset
         cache_path = self.cache(ctx) + dataset
 
@@ -192,29 +199,39 @@ class Markov(commands.Cog):
             model = IntelliText(f.read(), well_formed=False, state_size=token_size)
 
         self.set_dataset(ctx, dataset, model)
-        
+
         with open(cache_path, "w") as f:
             f.write(model.to_json())
 
         await ctx.send(f"Successfully regenerated {dataset}.", ephemeral=True)
 
     @dataset.command(name="combine", help="Combine two datasets")
-    @discord.app_commands.describe(new_name="What to name the new dataset", dataset_1="The first dataset to include", dataset_2="The second dataset to include")
-    @discord.app_commands.autocomplete(dataset_1=autocomplete_dataset, dataset_2=autocomplete_dataset)
-    async def regenerate_dataset(self, ctx: commands.Context, new_name: str, dataset_1: str, dataset_2: str):
+    @discord.app_commands.describe(
+        new_name="What to name the new dataset",
+        dataset_1="The first dataset to include",
+        dataset_2="The second dataset to include",
+    )
+    @discord.app_commands.autocomplete(
+        dataset_1=autocomplete_dataset, dataset_2=autocomplete_dataset
+    )
+    async def regenerate_dataset(
+        self, ctx: commands.Context, new_name: str, dataset_1: str, dataset_2: str
+    ):
         await ctx.defer()
-        
+
         for dataset in [dataset_1, dataset_2]:
             if not os.path.exists(self.cache(ctx) + dataset):
-                await ctx.send(f"The dataset '{dataset}' does not exist.", ephemeral=True)
+                await ctx.send(
+                    f"The dataset '{dataset}' does not exist.", ephemeral=True
+                )
                 return
 
         models = [self.load_dataset(ctx, dataset) for dataset in [dataset_1, dataset_2]]
-        
+
         model = markovify.combine(models)
 
         self.set_dataset(ctx, new_name, model)
-        
+
         with open(self.cache(ctx) + new_name, "w") as f:
             f.write(model.to_json())
 
@@ -225,7 +242,7 @@ class Markov(commands.Cog):
     @discord.app_commands.autocomplete(dataset=autocomplete_dataset)
     async def get_dataset(self, ctx: commands.context, dataset: str):
         await ctx.defer()
-        
+
         path = self.inputs(ctx) + dataset
 
         if not os.path.exists(path):
