@@ -25,7 +25,8 @@ class Markov(commands.Cog):
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-
+        self.models = {}
+        
     def get_server_path(self, ctx: commands.Context):
         path = os.path.abspath("./data/" + str(ctx.guild.id) + "/")
 
@@ -74,7 +75,7 @@ class Markov(commands.Cog):
             sentences += self.generate_sentence(model) + " "
 
         return sentences
-
+    
     @commands.hybrid_command(name="generate", help="Generate text")
     @discord.app_commands.describe(
         dataset="The name of the dataset to generate from",
@@ -90,23 +91,35 @@ class Markov(commands.Cog):
             await ctx.send("That dataset does not exist.", ephemeral=True)
             return
 
-        with open(path, "r") as f:
-            await ctx.send(
-                embed=discord.Embed(
-                    title=f"Generated from {dataset}",
-                    description=self.generate_sentences(
-                        IntelliText.from_json(f.read()), max(min(sentences, 10), 1)
-                    ),
-                )
+        if dataset in self.models:
+            model = self.models[dataset]
+            
+        else:
+            with open(path, "r") as f:
+                model = IntelliText.from_json(f.read())
+
+            self.models[dataset] = model
+            
+        await ctx.send(
+            embed=discord.Embed(
+                title=f"Generated from {dataset}",
+                description=self.generate_sentences(
+                    model, max(min(sentences, 10), 1)
+                ),
             )
+        )
 
     @commands.hybrid_group(name="dataset", fallback="list", help="List datasets")
     async def dataset(self, ctx: commands.Context):
+        embed = discord.Embed(
+            title=f"{ctx.guild.name}'s datasets",
+            description="\n".join(os.listdir(self.cache(ctx))),
+        )
+
+        embed.add_field(name="Cached Models", value=", ".join(self.models.keys()))
+
         await ctx.send(
-            embed=discord.Embed(
-                title=f"{ctx.guild.name}'s datasets",
-                description="\n".join(os.listdir(self.inputs(ctx))),
-            ),
+            embed=embed,
             ephemeral=True,
         )
 
@@ -122,8 +135,12 @@ class Markov(commands.Cog):
         await attachment.save(self.inputs(ctx) + name)
 
         with open(self.inputs(ctx) + name, "r") as f:
-            with open(self.cache(ctx) + name, "w") as f2:
-                f2.write(IntelliText(f.read(), well_formed=False).to_json())
+            model = IntelliText(f.read(), well_formed=False)
+
+        self.models[name] = model
+        
+        with open(self.cache(ctx) + name, "w") as f:
+            f.write(model.to_json())
 
         await ctx.send(f"Successfully added and cached {name}!", ephemeral=True)
 
@@ -134,7 +151,12 @@ class Markov(commands.Cog):
         cache_path = self.cache(ctx) + dataset
 
         if os.path.exists(cache_path):
-            os.path.remove(cache_path)
+            os.remove(cache_path)
+
+        if dataset in self.models:
+            del self.models[dataset]
+
+        await ctx.send(f"Successfully removed {dataset}", ephemeral=True)
 
     @dataset.command(name="get", help="Download a dataset")
     @discord.app_commands.describe(dataset="The name of the dataset to download")
