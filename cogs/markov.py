@@ -75,7 +75,31 @@ class Markov(commands.Cog):
             sentences += self.generate_sentence(model) + " "
 
         return sentences
+
+    def set_dataset(self, ctx, dataset, model):
+        if not ctx.guild.id in self.models:
+            self.models[ctx.guild.id] = {}
+
+        self.models[ctx.guild.id][dataset] = model
+        
     
+    def load_dataset(self, ctx, dataset):
+        if ctx.guild.id in self.models:
+            if dataset in self.models[ctx.guild.id]:
+                return self.models[ctx.guild.id][dataset]
+
+        with open(self.cache(ctx) + dataset, "r") as f:
+            model = IntelliText.from_json(f.read())
+            
+        self.set_dataset(ctx, dataset, model)
+
+        return model
+
+    def remove_dataset(self, ctx, dataset):
+        if ctx.guild.id in self.models:
+            if dataset in self.models[ctx.guild.id]:
+                del self.models[ctx.guild.id][dataset]
+        
     @commands.hybrid_command(name="generate", help="Generate text")
     @discord.app_commands.describe(
         dataset="The name of the dataset to generate from",
@@ -85,26 +109,15 @@ class Markov(commands.Cog):
     async def generate(self, ctx: commands.Context, dataset: str, sentences: int = 3):
         await ctx.defer()
 
-        path = self.cache(ctx) + dataset
-
-        if not os.path.exists(path):
+        if not os.path.exists(self.cache(ctx) + dataset):
             await ctx.send("That dataset does not exist.", ephemeral=True)
             return
-
-        if dataset in self.models:
-            model = self.models[dataset]
-            
-        else:
-            with open(path, "r") as f:
-                model = IntelliText.from_json(f.read())
-
-            self.models[dataset] = model
             
         await ctx.send(
             embed=discord.Embed(
                 title=f"Generated from {dataset}",
                 description=self.generate_sentences(
-                    model, max(min(sentences, 10), 1)
+                    self.load_dataset(ctx, dataset), max(min(sentences, 10), 1)
                 ),
             )
         )
@@ -116,7 +129,9 @@ class Markov(commands.Cog):
             description="\n".join(os.listdir(self.cache(ctx))),
         )
 
-        embed.add_field(name="Cached Models", value=", ".join(self.models.keys()))
+        if ctx.guild.id in self.models:
+            if len(self.models[ctx.guild.id]) > 0:
+                embed.add_field(name="Cached Models", value=", ".join(self.models[ctx.guild.id].keys()))
 
         await ctx.send(
             embed=embed,
@@ -137,8 +152,8 @@ class Markov(commands.Cog):
         with open(self.inputs(ctx) + name, "r") as f:
             model = IntelliText(f.read(), well_formed=False)
 
-        self.models[name] = model
-        
+        self.set_dataset(ctx, name, model)
+
         with open(self.cache(ctx) + name, "w") as f:
             f.write(model.to_json())
 
@@ -150,13 +165,56 @@ class Markov(commands.Cog):
     async def remove_dataset(self, ctx: commands.Context, dataset: str):
         cache_path = self.cache(ctx) + dataset
 
-        if os.path.exists(cache_path):
-            os.remove(cache_path)
+        if not os.path.exists(cache_path):
+            await ctx.send("That dataset does not exist.", ephemeral=True)
+            return
+            
+        os.remove(cache_path)
 
-        if dataset in self.models:
-            del self.models[dataset]
+        self.remove_dataset(ctx, dataset)
 
-        await ctx.send(f"Successfully removed {dataset}", ephemeral=True)
+        await ctx.send(f"Successfully removed {dataset}.", ephemeral=True)
+
+    @dataset.command(name="regenerate", help="Regenerate the cache for a dataset")
+    @discord.app_commands.describe(dataset="The name of the dataset to regenerate", token_size="How many words should be in a token. Higher numbers is more coherent but much less random. (default 2)")
+    @discord.app_commands.autocomplete(dataset=autocomplete_dataset)
+    async def regenerate_dataset(self, ctx: commands.Context, dataset: str, token_size: int = 2):
+        input_path = self.inputs(ctx) + dataset
+        cache_path = self.cache(ctx) + dataset
+
+        if not os.path.exists(cache_path):
+            await ctx.send("That dataset does not exist.", ephemeral=True)
+            return
+
+        with open(input_path, "r") as f:
+            model = IntelliText(f.read(), well_formed=False, state_size=token_size)
+
+        self.set_dataset(ctx, dataset, model)
+        
+        with open(cache_path, "w") as f:
+            f.write(model.to_json())
+
+        await ctx.send(f"Successfully regenerated {dataset}.", ephemeral=True)
+
+    @dataset.command(name="combine", help="Combine two datasets")
+    @discord.app_commands.describe(new_name="What to name the new dataset", dataset_1="The first dataset to include", dataset_2="The second dataset to include")
+    @discord.app_commands.autocomplete(dataset_1=autocomplete_dataset, dataset_2=autocomplete_dataset)
+    async def regenerate_dataset(self, ctx: commands.Context, new_name: str, dataset_1: str, dataset_2: str):
+        for dataset in [dataset_1, dataset_2]:
+            if not os.path.exists(self.cache(ctx) + dataset):
+                await ctx.send(f"The dataset '{dataset}' does not exist.", ephemeral=True)
+                return
+
+        models = [self.load_dataset(ctx, dataset) for dataset in [dataset_1, dataset_2]]
+        
+        model = markovify.combine(models)
+
+        self.set_dataset(ctx, new_name, model)
+        
+        with open(self.cache(ctx) + new_name, "w") as f:
+            f.write(model.to_json())
+
+        await ctx.send(f"Successfully created {new_name}.", ephemeral=True)
 
     @dataset.command(name="get", help="Download a dataset")
     @discord.app_commands.describe(dataset="The name of the dataset to download")
