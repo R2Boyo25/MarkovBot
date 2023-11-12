@@ -74,7 +74,7 @@ class Markov(commands.Cog):
         for _ in range(max(sentence_count, 1)):
             sentences += self.generate_sentence(model) + " "
 
-        return sentences
+        return sentences[:2000]
 
     def set_dataset(self, ctx, dataset, model):
         if not ctx.guild.id in self.models:
@@ -245,6 +245,10 @@ class Markov(commands.Cog):
 
         path = self.inputs(ctx) + dataset
 
+        if not os.path.exists(path) and dataset in os.listdir(self.cache(ctx)):
+            await ctx.send("That dataset is a combination of two datasets and therefore has no source file.", ephemeral=True)
+            return
+        
         if not os.path.exists(path):
             await ctx.send("That dataset does not exist.", ephemeral=True)
             return
